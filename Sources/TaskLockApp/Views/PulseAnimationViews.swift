@@ -1,15 +1,5 @@
 import SwiftUI
 
-// MARK: - Preference Key
-
-struct ViewHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat { Layout.defaultWindowHeight }
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 // MARK: - Multi-wave Pulse View
 
 struct MultiwavePulseView: View {
@@ -40,7 +30,7 @@ struct MultiwavePulseView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
-        .drawingGroup()
+        .compositingGroup()
         .onAppear {
             // Reset all states
             wave1Progress = 0

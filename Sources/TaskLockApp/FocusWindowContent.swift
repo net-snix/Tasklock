@@ -4,6 +4,7 @@ import Combine
 
 struct FocusWindowContent: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.colorScheme) var colorScheme
     @ObservedObject var viewModel: FocusViewModel
     @State private var noteHeight: CGFloat
     @State private var isSettingsPresented = false
@@ -22,15 +23,6 @@ struct FocusWindowContent: View {
     var body: some View {
         content
             .frame(width: Layout.windowWidth)
-            .background(
-                GeometryReader { proxy in
-                    Color.clear
-                        .preference(key: ViewHeightPreferenceKey.self, value: proxy.size.height)
-                }
-            )
-            .onPreferenceChange(ViewHeightPreferenceKey.self) { height in
-                viewModel.updateContentHeight(height)
-            }
             .onReceive(viewModel.$pulseEventID) { newID in
                 pulseVisualID = newID
                 guard hasHandledInitialPulse else {
@@ -46,6 +38,18 @@ struct FocusWindowContent: View {
             .onReceive(viewModel.$requestedEditorBlurID) { _ in
                 editorShouldBeFocused = false
             }
+            .onAppear {
+                recalculateViewHeight()
+            }
+            .onChange(of: noteHeight) { _, _ in
+                recalculateViewHeight()
+            }
+            .onChange(of: isHovering) { _, _ in
+                recalculateViewHeight()
+            }
+            .onChange(of: isSettingsPresented) { _, _ in
+                recalculateViewHeight()
+            }
     }
 
     private var content: some View {
@@ -53,42 +57,24 @@ struct FocusWindowContent: View {
 
         return ZStack {
             // Multi-wave pulse rings for attention-grabbing effect
-            MultiwavePulseView(intensity: viewModel.pulseIntensity, reduceMotion: reduceMotion)
-                .id(pulseVisualID)
-                .padding(viewModel.isEditing ? Layout.Metrics.pulsePaddingEditing : Layout.Metrics.pulsePaddingStandard)
-                .allowsHitTesting(false)
+            if viewModel.pulseIntensity > 0 {
+                MultiwavePulseView(intensity: viewModel.pulseIntensity, reduceMotion: reduceMotion)
+                    .id(pulseVisualID)
+                    .padding(viewModel.isEditing ? Layout.Metrics.pulsePaddingEditing : Layout.Metrics.pulsePaddingStandard)
+                    .allowsHitTesting(false)
+            }
 
             VStack(alignment: .leading, spacing: 0) {
                 if showHeader {
                     header
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .top)),
-                                removal: .opacity
-                            )
-                        )
+                        .transition(.opacity)
                         .padding(.bottom, Layout.Metrics.paddingHeaderBottom)
                 }
                 noteCard
             }
             .padding(.horizontal, Layout.Metrics.paddingContentHorizontal)
             .padding(.vertical, Layout.Metrics.paddingContentVertical)
-            .background(
-                RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusLarge, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusLarge, style: .continuous)
-                            .strokeBorder(
-                                Color.white.opacity(
-                                    Layout.PulseEffect.borderBaseOpacity +
-                                    Layout.PulseEffect.borderMaxOpacity * pulseEnvelope * viewModel.pulseIntensity
-                                ),
-                                lineWidth: 1 + 3 * pulseEnvelope * viewModel.pulseIntensity
-                            )
-                            .blendMode(.screen)
-                    )
-                    .shadow(color: Color.black.opacity(0.08), radius: 8, y: 3)
-            )
+            .background(containerBackground)
             .scaleEffect(reduceMotion ? 1.0 : (1 + Layout.PulseEffect.scaleAmplitude * pulseEnvelope * viewModel.pulseIntensity))
             .rotationEffect(.degrees(reduceMotion ? 0 : (Layout.PulseEffect.rotationMultiplier * pulseEnvelope * viewModel.pulseIntensity * sin(pulseEnvelope * .pi))))
             .shadow(
@@ -97,8 +83,8 @@ struct FocusWindowContent: View {
                 y: (reduceMotion ? 0 : 4) * pulseEnvelope * viewModel.pulseIntensity
             )
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, Layout.Metrics.containerOuterPaddingX)
+        .padding(.vertical, Layout.Metrics.containerOuterPaddingY)
         .onHover { hovering in
             withAnimation(Layout.Animation.hoverTransition) {
                 isHovering = hovering
@@ -164,30 +150,81 @@ struct FocusWindowContent: View {
         .frame(height: noteHeight)
         .padding(.vertical, Layout.Metrics.paddingNoteVertical)
         .padding(.horizontal, Layout.Metrics.paddingNoteHorizontal)
-        .background(
-            RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusMedium, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusMedium, style: .continuous)
-                        .stroke(
-                            Color.accentColor.opacity(isPulsing ? 0.85 : (viewModel.isEditing || isHovering ? 0.55 : 0.28)),
-                            lineWidth: viewModel.isEditing ? 1.6 : 1.2
-                        )
-                        .animation(Layout.Animation.borderTransition, value: isPulsing)
-                )
-                .shadow(color: Color.black.opacity(viewModel.isEditing ? 0.15 : 0.10), radius: 10, y: 4)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusMedium, style: .continuous))
+        .background(noteCardBackground)
+        .contentShape(noteCardShape)
         .overlay(
-            RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusMedium, style: .continuous)
+            noteCardShape
                 .fill(Color.clear)
-                .contentShape(RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusMedium, style: .continuous))
+                .contentShape(noteCardShape)
                 .allowsHitTesting(viewModel.isEditing == false)
                 .onTapGesture {
                     guard viewModel.isEditing == false else { return }
                     viewModel.beginEditing()
                 }
         )
+    }
+
+    private var containerShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusContainer, style: .continuous)
+    }
+
+    private var noteCardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Layout.Metrics.cornerRadiusCard, style: .continuous)
+    }
+
+    private var containerBackground: some View {
+        return ZStack {
+            containerShape
+                .fill(containerFill)
+                .shadow(color: Color.black.opacity(0.08), radius: 6, y: 2)
+        }
+        .compositingGroup()
+    }
+
+    private var noteCardBackground: some View {
+        let borderOpacity = isPulsing ? 0.85 : (viewModel.isEditing || isHovering ? 0.55 : 0.28)
+        let borderWidth = viewModel.isEditing ? 1.6 : 1.2
+
+        return ZStack {
+            noteCardShape
+                .fill(noteFill)
+                .shadow(color: Color.black.opacity(0.06), radius: 4, y: 1)
+
+            noteCardShape
+                .strokeBorder(Color.accentColor.opacity(borderOpacity), lineWidth: borderWidth)
+                .animation(Layout.Animation.borderTransition, value: isPulsing)
+        }
+        .compositingGroup()
+    }
+
+    private func recalculateViewHeight() {
+        let headerVisible = isHovering || isSettingsPresented
+        let headerHeight = headerVisible
+            ? Layout.Metrics.headerHeight + Layout.Metrics.paddingHeaderBottom
+            : 0
+        let noteTotal = noteHeight + Layout.Metrics.paddingNoteVertical * 2
+        let contentPadding = Layout.Metrics.paddingContentVertical * 2
+        let outerPadding = Layout.Metrics.containerOuterPaddingY * 2
+        let totalHeight = headerHeight + noteTotal + contentPadding + outerPadding
+        viewModel.scheduleContentHeightUpdate(totalHeight)
+    }
+
+    private var containerFill: Color {
+        switch colorScheme {
+        case .dark:
+            return Color(.sRGB, white: 0.18, opacity: 0.96)
+        default:
+            return Color(.sRGB, white: 0.97, opacity: 0.96)
+        }
+    }
+
+    private var noteFill: Color {
+        switch colorScheme {
+        case .dark:
+            return Color(.sRGB, white: 0.24, opacity: 0.96)
+        default:
+            return Color(.sRGB, white: 0.92, opacity: 0.96)
+        }
     }
 
     private func triggerPulse() {

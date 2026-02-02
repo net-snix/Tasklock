@@ -13,6 +13,8 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
     private var hasInitialPositionBeenSet = false
     private var isInStartupPhase = true
     private var startupTimer: Task<Void, Never>?
+    private var pendingHeight: CGFloat?
+    private var heightUpdateTask: Task<Void, Never>?
     var onRequestHide: (() -> Void)?
 
     init(viewModel: FocusViewModel) {
@@ -20,7 +22,7 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
 
         let rootView = FocusWindowContent(viewModel: viewModel)
         let hostingView = NSHostingView(rootView: rootView)
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.translatesAutoresizingMaskIntoConstraints = true
 
         let initialRect = NSRect(
             x: 0,
@@ -45,16 +47,9 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isMovableByWindowBackground = true
 
-        let containerView = NSView(frame: initialRect)
-        containerView.wantsLayer = true
-        window.contentView = containerView
-        containerView.addSubview(hostingView)
-        NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: containerView.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
-        ])
+        window.contentView = hostingView
+        hostingView.frame = initialRect
+        hostingView.autoresizingMask = [.width, .height]
 
         super.init(window: window)
 
@@ -71,7 +66,7 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
             miniButton.alphaValue = 0
         }
         updateTitleButtonsVisibility(show: isMouseInsideWindow(), animated: false)
-        setupMouseTracking(on: containerView)
+        setupMouseTracking(on: hostingView)
 
         if let zoom = window.standardWindowButton(.zoomButton) {
             zoom.isHidden = true
@@ -80,7 +75,7 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
         viewModel.$viewHeight
             .receive(on: RunLoop.main)
             .sink { [weak self] height in
-                self?.updateWindowHeight(height)
+                self?.scheduleWindowHeightUpdate(height)
             }
             .store(in: &cancellables)
 
@@ -154,11 +149,11 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
         let targetHeight = Layout.clampWindowHeight(height)
         var frame = window.frame
 
-        // Only anchor to bottom for user-initiated changes after startup
+        // Anchor to top after startup so hover/content changes don't shift downward
         if hasInitialPositionBeenSet && !isInStartupPhase {
-            let originalBottom = frame.minY
+            let originalTop = frame.maxY
             frame.size.height = targetHeight
-            frame.origin.y = originalBottom
+            frame.origin.y = originalTop - targetHeight
         } else {
             // During startup or initial sizing, just change height without moving
             frame.size.height = targetHeight
@@ -173,6 +168,23 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
         }
 
         window.setFrame(frame, display: true, animate: false)
+        if let contentView = window.contentView {
+            contentView.frame = NSRect(origin: .zero, size: frame.size)
+        }
+    }
+
+    private func scheduleWindowHeightUpdate(_ height: CGFloat) {
+        pendingHeight = height
+        guard heightUpdateTask == nil else { return }
+        heightUpdateTask = Task { @MainActor in
+            // Coalesce updates and avoid resizing during constraint passes.
+            try? await Task.sleep(nanoseconds: 16_000_000)
+            let nextHeight = pendingHeight
+            pendingHeight = nil
+            heightUpdateTask = nil
+            guard let nextHeight else { return }
+            updateWindowHeight(nextHeight)
+        }
     }
 
     private func setupMouseTracking(on view: NSView) {

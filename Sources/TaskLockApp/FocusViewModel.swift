@@ -72,10 +72,12 @@ final class FocusViewModel: ObservableObject {
     private var isInStartupPhase = true
     private var focusTextSaveTask: Task<Void, Never>?
     private var windowPositionSaveTask: Task<Void, Never>?
+    private var contentHeightTask: Task<Void, Never>?
     private var pendingWindowOrigin: CGPoint?
     private enum PersistenceDebounce {
         static let focusText: UInt64 = 300_000_000 // 300ms
         static let windowPosition: UInt64 = 350_000_000 // 350ms
+        static let contentHeight: UInt64 = 60_000_000 // 60ms
     }
 
     init(
@@ -131,6 +133,7 @@ final class FocusViewModel: ObservableObject {
     deinit {
         focusTextSaveTask?.cancel()
         windowPositionSaveTask?.cancel()
+        contentHeightTask?.cancel()
     }
 
     func updateContentHeight(_ rawHeight: CGFloat) {
@@ -140,6 +143,19 @@ final class FocusViewModel: ObservableObject {
 
         if !isInStartupPhase {
             storage.saveWindowHeight(clamped)
+        }
+    }
+
+    func scheduleContentHeightUpdate(_ rawHeight: CGFloat) {
+        let clamped = Layout.clampWindowHeight(rawHeight)
+        guard abs(clamped - viewHeight) > 0.5 else { return }
+        contentHeightTask?.cancel()
+        contentHeightTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: PersistenceDebounce.contentHeight)
+            guard Task.isCancelled == false else { return }
+            await MainActor.run {
+                self?.updateContentHeight(clamped)
+            }
         }
     }
 

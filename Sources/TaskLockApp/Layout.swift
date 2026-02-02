@@ -30,12 +30,19 @@ enum Layout {
         static let cornerRadiusMedium: CGFloat = 22
         static let cornerRadiusLarge: CGFloat = 26
         static let cornerRadiusRing: CGFloat = 30
+        static let cornerRadiusContainer: CGFloat = 30
+        static let cornerRadiusCard: CGFloat = 24
 
         static let paddingContentHorizontal: CGFloat = 20
         static let paddingContentVertical: CGFloat = 16
         static let paddingNoteHorizontal: CGFloat = 18
         static let paddingNoteVertical: CGFloat = 10
         static let paddingHeaderBottom: CGFloat = 10
+
+        static let containerOuterPaddingX: CGFloat = 8
+        static let containerOuterPaddingY: CGFloat = 6
+
+        static let headerHeight: CGFloat = 32
         
         static let pulsePaddingEditing: CGFloat = 6
         static let pulsePaddingStandard: CGFloat = 2
@@ -73,10 +80,6 @@ enum Layout {
 
     // MARK: - Pulse Animation Constants
     enum PulseEffect {
-        // Border glow opacity
-        static let borderBaseOpacity: CGFloat = 0.28
-        static let borderMaxOpacity: CGFloat = 0.40
-
         // Scale and rotation effects
         static let scaleAmplitude: CGFloat = 0.06
         static let rotationMultiplier: CGFloat = 2.0

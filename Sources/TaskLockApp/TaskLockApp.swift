@@ -80,11 +80,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            button.image = NSImage(
+            let baseImage = NSImage(
                 systemSymbolName: "scope",
                 accessibilityDescription: "TaskLock"
             )
-            button.contentTintColor = .controlAccentColor
+            let image = baseImage?.tinted(with: .white)
+            button.image = image
+            button.contentTintColor = nil
+            button.appearsDisabled = false
             button.target = self
             button.action = #selector(toggleWindowFromStatusItem)
             button.toolTip = "Show or hide TaskLock"
