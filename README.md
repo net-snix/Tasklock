@@ -2,7 +2,8 @@
 
 A minimalist macOS focus reminder that stays on top and gently pulses to pull you back.
 
-<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/d5310656-b9ea-45d6-8608-6dac3e1de163" />
+<img width="1612" height="620" alt="image" src="https://github.com/user-attachments/assets/32fb3847-a65b-4b2e-8cbf-e2f90d7273d2" />
+
 
 ## Features
 - Floating always-on-top note window across Spaces
