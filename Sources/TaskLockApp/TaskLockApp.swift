@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func triggerFullScreenPulse() {
         guard viewModel.pulseRange > 0 else { return }
+        guard viewModel.pulseIntensity > 0 else { return }
         guard let window = windowController?.window else { return }
 
         // Calculate center point (center of main window in screen coordinates)
@@ -133,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let window = windowController?.window else { return }
         window.orderOut(self)
         viewModel.commitEditing()
+        viewModel.flushWindowPositionSave()
         viewModel.setPulseActive(false)
         updateStatusItemAppearance(isVisible: false)
     }

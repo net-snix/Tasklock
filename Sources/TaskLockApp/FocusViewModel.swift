@@ -15,9 +15,7 @@ final class FocusViewModel: ObservableObject {
         didSet {
             guard oldValue != pulseInterval else { return }
             storage.savePulseInterval(pulseInterval)
-            if isPulseActive {
-                pulseController.schedule(interval: pulseInterval)
-            }
+            updatePulseScheduling(triggerNow: false)
         }
     }
     @Published var selectedSoundEffectID: String {
@@ -36,6 +34,8 @@ final class FocusViewModel: ObservableObject {
         didSet {
             guard oldValue != pulseIntensity else { return }
             storage.savePulseIntensity(pulseIntensity)
+            let wasOff = oldValue <= 0
+            updatePulseScheduling(triggerNow: wasOff)
         }
     }
     @Published var pulseRange: CGFloat {
@@ -111,6 +111,7 @@ final class FocusViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] identifier in
                 guard let self else { return }
+                guard self.pulseIntensity > 0 else { return }
                 self.pulseEventID = identifier
                 if self.hasHandledInitialPulse {
                     self.soundPlayer.play(effectID: self.selectedSoundEffectID)
@@ -120,8 +121,7 @@ final class FocusViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        pulseController.schedule(interval: pulseInterval)
-        pulseController.triggerNow()
+        updatePulseScheduling(triggerNow: true)
         if resolvedSoundID != storedSoundID {
             storage.saveSoundEffectID(resolvedSoundID)
         }
@@ -182,6 +182,12 @@ final class FocusViewModel: ObservableObject {
         scheduleWindowPositionSave()
     }
 
+    func flushWindowPositionSave() {
+        windowPositionSaveTask?.cancel()
+        windowPositionSaveTask = nil
+        persistPendingWindowOrigin()
+    }
+
     var windowOriginX: CGFloat? {
         storage.windowOriginX
     }
@@ -197,13 +203,7 @@ final class FocusViewModel: ObservableObject {
     func setPulseActive(_ isActive: Bool) {
         guard isPulseActive != isActive else { return }
         isPulseActive = isActive
-        if isActive {
-            pulseController.schedule(interval: pulseInterval)
-            pulseController.triggerNow()
-        } else {
-            pulseController.cancel()
-            hasHandledInitialPulse = false
-        }
+        updatePulseScheduling(triggerNow: isActive)
     }
 
     private func resolveSoundEffectID(_ candidate: String) -> String {
@@ -256,5 +256,17 @@ final class FocusViewModel: ObservableObject {
         self.pendingWindowOrigin = nil
         storage.saveWindowOriginX(pendingWindowOrigin.x)
         storage.saveWindowOriginY(pendingWindowOrigin.y)
+    }
+
+    private func updatePulseScheduling(triggerNow: Bool) {
+        guard isPulseActive, pulseIntensity > 0 else {
+            pulseController.cancel()
+            hasHandledInitialPulse = false
+            return
+        }
+        pulseController.schedule(interval: pulseInterval)
+        if triggerNow {
+            pulseController.triggerNow()
+        }
     }
 }

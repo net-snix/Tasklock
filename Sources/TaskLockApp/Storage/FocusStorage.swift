@@ -64,12 +64,16 @@ struct FocusStorage: FocusStorageProtocol {
     }
 
     var pulseIntensity: CGFloat {
+        guard defaults.object(forKey: Keys.pulseIntensity) != nil else {
+            return Self.defaultPulseIntensity
+        }
         let stored = defaults.double(forKey: Keys.pulseIntensity)
-        return stored > 0 ? CGFloat(stored) : Self.defaultPulseIntensity
+        return max(0, min(1, CGFloat(stored)))
     }
 
     func savePulseIntensity(_ intensity: CGFloat) {
-        defaults.set(Double(intensity), forKey: Keys.pulseIntensity)
+        let clamped = max(0, min(1, intensity))
+        defaults.set(Double(clamped), forKey: Keys.pulseIntensity)
     }
 
     var pulseRange: CGFloat {

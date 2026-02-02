@@ -132,8 +132,10 @@ struct SettingsForm: View {
             .buttonStyle(.bordered)
         }
         .onReceive(viewModel.$pulseInterval) { newValue in
-            guard abs(newValue - intervalValue) > 0.5 else { return }
-            intervalValue = clampInterval(newValue)
+            let clamped = clampInterval(newValue)
+            guard abs(clamped - intervalValue) > 0.5 else { return }
+            intervalValue = clamped
+            unitSelection = TimeUnit.preferred(for: clamped)
         }
     }
 
