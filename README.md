@@ -2,7 +2,7 @@
 
 A minimalist macOS focus reminder that stays on top and gently pulses to pull you back.
 
-![TaskLock](assets/tasklock-reminder.png)
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/d5310656-b9ea-45d6-8608-6dac3e1de163" />
 
 ## Features
 - Floating always-on-top note window across Spaces
