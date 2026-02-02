@@ -33,7 +33,7 @@ final class FocusWindowController: NSWindowController, NSWindowDelegate {
 
         let window = FloatingWindow(
             contentRect: initialRect,
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
